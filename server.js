@@ -23,10 +23,6 @@ var pageDir 		= path.resolve(__dirname + '/views/partials'),
 
 var properties = propertiesReader('applicationResources.file');
 
-// DB Connect
-// mongoose.connect('mongodb://admin:asq123@ds011820.mlab.com:11820/dbmeanasq');
-mongoose.connect('mongodb://localhost:27017/mean-test');
-
 // Landing Page
 app.get('/', function (req, res) {
 	res.sendFile(__dirname + '/client/views/index.html')
@@ -38,19 +34,6 @@ app.use('/css', express.static(__dirname + '/client/views/css'));
 app.use('/images', express.static(__dirname + '/client/views/images'));
 app.use('/fonts', express.static(__dirname + '/client/views/fonts'));
 app.use('/pages', express.static(__dirname + '/client/views/pages'));
-
-// DBmodels
-var userModel 		= require('./DBmodels/userModel.js'),
-	questionModel 	= require('./DBmodels/questionModel.js'),
-	GKModel 		= require('./DBmodels/GKModel.js'),
-	SQMModel 		= require('./DBmodels/SQMModel.js'),
-	EPModel 		= require('./DBmodels/EPModel.js'),
-	MAModel 		= require('./DBmodels/MAModel.js'),
-	SVVModel 		= require('./DBmodels/SVVModel.js'),
-	SCMModel 		= require('./DBmodels/SCMModel.js'),
-	PMModel 		= require('./DBmodels/PMModel.js'),
-	historyModel 	= require('./DBmodels/historymodels.js'),
-	certModel 		= require('./DBmodels/certModel.js');
 
 // store and retrieve the static information.
 var emailTransport 		  	= properties.get('app.email.transport'),
@@ -71,6 +54,30 @@ var emailTransport 		  	= properties.get('app.email.transport'),
 	regTemplate 			= properties.get("app.email.registrationTem"),
 	chgPwdTemplate 			= properties.get("app.email.changePwdTem"),
 	resetConfirmTemplate 	= properties.get("app.email.resetConfirmTem");
+	encKey					= properties.get("process.env.encKey"),
+	sigKey					= properties.get("process.env.sigKey"),
+	port					= properties.get("process.env.port"),
+	mongodbUrl				= properties.get("mongodb.connect.url");
+
+process.env.port = port;
+process.env.encKey = encKey;
+process.env.sigKey = sigKey;
+
+// DB Connect
+mongoose.connect(mongodbUrl);
+
+// DBmodels
+var userModel 		= require('./DBmodels/userModel.js'),
+	questionModel 	= require('./DBmodels/questionModel.js'),
+	GKModel 		= require('./DBmodels/GKModel.js'),
+	SQMModel 		= require('./DBmodels/SQMModel.js'),
+	EPModel 		= require('./DBmodels/EPModel.js'),
+	MAModel 		= require('./DBmodels/MAModel.js'),
+	SVVModel 		= require('./DBmodels/SVVModel.js'),
+	SCMModel 		= require('./DBmodels/SCMModel.js'),
+	PMModel 		= require('./DBmodels/PMModel.js'),
+	historyModel 	= require('./DBmodels/historymodels.js'),
+	certModel 		= require('./DBmodels/certModel.js');
 
 // Utils
 function randomNfromM(N, A) {
@@ -685,19 +692,22 @@ app.post('/updateQuestionDet', function(req, res) {
 		_id : req.body._id
 	}, function(err, result) {
 		if (result && result._id) {
-			$cat.update({
-				_id : req.body._id
-			}, {
-				content : req.body.content,
-				choices : JSON.parse(req.body.choices),
-				correctChoice : req.body.correctCh
-			}, false, function(err, num) {
+			$cat.remove({
+				_id: req.body._id
+			}, function (err, num) {
 				if (num.ok = 1) {
-					console.log('success');
-					res.send('success')
-				} else {
-					console.log('error');
-					res.send('error')
+					//console.log('remove success');
+					//console.log(req.body);
+					var questionRecord = new $cat(req.body);
+					questionRecord.save(function (err) {
+						if (num.ok = 1) {
+							console.log('update success');
+							res.send('success')
+						} else {
+							console.log('update error');
+							res.send('error')
+						}
+					})
 				}
 			})
 		}
@@ -770,62 +780,83 @@ app.post('/updateProfile', function(req, res) {
 		email : req.body.email
 	}, function(err, result) {
 		if (result && result.email) {
-			userModel.update({
-				email : req.body.email
-			}, {
-				firstName 	: req.body.firstName,
-				lastName 	: req.body.lastName,
-				address1 	: req.body.address1,
-				address2 	: req.body.address2,
-				city 		: req.body.city,
-				state 		: req.body.state,
-				zipcode 	: req.body.zipcode,
-				birthDate 	: req.body.birthDate
-			}, false, function(err, num) {
+			userModel.remove({
+				email: req.body.email
+			}, function (err, num) {
 				if (num.ok = 1) {
-					console.log(req.body.email + ' User Profile Updated');
-					res.send('success')
-				} else {
-					console.log('Error updaring User Profile ' + req.body.email);
-					res.send('error')
+					//console.log('user remove success');
+					// now create new user
+					var newUser = new userModel({
+						email: result.email,
+						password: result.password,
+						firstName: req.body.firstName,
+						lastName: req.body.lastName,
+						address1: req.body.address1,
+						address2: req.body.address2,
+						city: req.body.city,
+						state: req.body.state,
+						zipcode: req.body.zipcode,
+						role: result.role,
+						activeIn: result.activeIn,
+						expiryDate: result.expiryDate,
+						birthDate: req.body.birthDate,
+						resetPasswordToken: result.resetPasswordToken,
+						resetPasswordExpires: result.resetPasswordExpires
+					});
+					newUser.save(function (err) {
+						if (num.ok = 1) {
+							console.log(req.body.email + ' User Profile Updated');
+							res.send('success')
+						} else {
+							console.log('Error updaring User Profile ' + req.body.email);
+							res.send('error')
+						}
+					})
 				}
 			})
 		}
 	})
 });
-
 //Added by Srinivas Thungathurti for ASQ Upgrade2.0.saveUserProfile function added to update the user profile information using Admin User Management screen.
 app.post('/saveUserProfile', function(req, res) {
 	userModel.findOne({
 		email : req.body.email
 	}, function(err, result) {
 		if (result && result.email) {
-			userModel.update({
-				email : req.body.email
-			}, {
-				firstName 	: req.body.firstName,
-				lastName 	: req.body.lastName,
-				address1 	: req.body.address1,
-				address2 	: req.body.address2,
-				city 		: req.body.city,
-				state 		: req.body.state,
-				zipcode 	: req.body.zipcode,
-				birthDate 	: req.body.birthDate,
-				expiryDate 	: req.body.expiryDate,
-				role 		: req.body.role,
-				activeIn 	: req.body.activeIn				
-			}, false, function(err, num) {
+			userModel.remove({
+				email: req.body.email
+			}, function (err, num) {
 				if (num.ok = 1) {
-					console.log('success');
-					res.send('success')
-				} else {
-					console.log('error');
-					res.send('error')
+					var newUser = new userModel({
+						email: req.body.email,
+						password: req.body.password,
+						firstName: req.body.firstName,
+						lastName: req.body.lastName,
+						address1: req.body.address1,
+						address2: req.body.address2,
+						city: req.body.city,
+						state: req.body.state,
+						zipcode: req.body.zipcode,
+						birthDate: req.body.birthDate,
+						expiryDate: req.body.expiryDate,
+						role: req.body.role,
+						activeIn: req.body.activeIn
+					});
+					newUser.save(function (err) {
+						if (num.ok = 1) {
+							console.log('success');
+							res.send('success')
+						} else {
+							console.log('error');
+							res.send('error')
+						}
+					})
 				}
 			})
 		}
 	})
 });
+
 
 app.post('/addCertDet', function(req, res) {
 	certModel.findOne({
@@ -919,6 +950,6 @@ app.post('/updatePassword', function (req, res) {
 });
 //End changes for ASQ Upgrade 2.0. 
 
-app.listen(5137, function() {
-	console.log("Server Lisening on Port 5137")
+app.listen(process.env.port, function() {
+	console.log("Server Listening on Port "+process.env.port)
 });
