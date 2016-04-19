@@ -1,0 +1,10 @@
+<div ng-controller="timerController"> 
+	<h2 class="text-center" style="color: red;">
+		<timer ng-if="timer" interval="1000" countdown="7200">
+			Time Remaining: {{hhours}} : {{mminutes}} : {{sseconds}}
+			<div class="progress progress-info progress-striped top-margin"style="height: 30px;">
+				<div class="progress-bar" style="width: {{((mminutes * 2)/120)*100}}%;"></div> 
+			</div>
+		</timer>
+	</h2>
+</div>
