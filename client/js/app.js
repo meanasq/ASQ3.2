@@ -1188,8 +1188,8 @@ app.controller('adminController',
 			_id 		: $rootScope.questionID,
 			category 	: $scope.QueCat,
 			content 	: $scope.QueContent,
-			choices 	: formatChoice,
-			correctCh 	: $scope.QueCorChoice
+			choices 	: JSON.parse(formatChoice),
+			correctChoice 	: $scope.QueCorChoice
 		};
 
 		$http.post('/updateQuestionDet',postData)
